@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10100f" />
+    <meta name="description" content="Recast a performer in a short video with a character image while preserving the source performance and scene." />
+    <title>Open Genjutsu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Open Genjutsu home">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span>open<span class="brand-light"> genjutsu</span></span>
+        </a>
+        <div class="topbar-right">
+          <span class="local-pill"><span class="live-dot"></span> LOCAL SESSION</span>
+          <button class="icon-button" id="clear-button" type="button" title="Clear local files" aria-label="Clear local files">⌫</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div class="eyebrow"><span class="eyebrow-line"></span> VIDEO RECAST · LOCAL-FIRST WORKFLOW</div>
+          <h1>Same moment.<br /><span>A new lead.</span></h1>
+          <p class="hero-copy">Recast the main performer with a character reference while keeping the source performance and location. Review the inputs, render once, then download the result.</p>
+        </section>
+
+        <section class="workflow" aria-label="Video recast workflow">
+          <div class="stepper">
+            <div class="stepper-step active" data-step="1"><span class="step-number">01</span><span>Inputs</span></div>
+            <span class="stepper-rule"></span>
+            <div class="stepper-step" data-step="2"><span class="step-number">02</span><span>Recast</span></div>
+            <span class="stepper-rule"></span>
+            <div class="stepper-step" data-step="3"><span class="step-number">03</span><span>Review & download</span></div>
+          </div>
+
+          <div class="workspace-grid">
+            <section class="panel setup-panel" aria-labelledby="setup-title">
+              <div class="panel-heading">
+                <div><div class="section-index">01 / INPUTS</div><h2 id="setup-title">Build your recast</h2></div>
+                <span class="step-badge">ONE RENDER</span>
+              </div>
+
+              <label class="field-label" for="api-key">Generation API key</label>
+              <div class="key-row">
+                <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key" />
+                <button id="toggle-key" class="key-toggle" type="button">Show</button>
+              </div>
+              <p class="field-hint">Kept in this tab's memory and forwarded by your local app with each request.</p>
+
+              <div class="upload-grid">
+                <div class="upload-block">
+                  <label class="field-label" for="source-file">01 — Source video</label>
+                  <label class="dropzone" for="source-file" id="source-drop">
+                    <input id="source-file" type="file" accept="video/mp4,video/quicktime,.mp4,.mov" />
+                    <span class="upload-icon">↥</span>
+                    <span class="drop-title" id="source-name">Choose your clip</span>
+                    <span class="drop-meta">MP4 or MOV · 4–30 sec · up to 50 MB</span>
+                  </label>
+                  <video id="source-preview" class="source-preview hidden" controls playsinline></video>
+                </div>
+                <div class="upload-block">
+                  <label class="field-label" for="reference-file">02 — Character reference</label>
+                  <label class="dropzone" for="reference-file" id="reference-drop">
+                    <input id="reference-file" type="file" accept="image/jpeg,image/png,image/webp" />
+                    <span class="upload-icon">＋</span>
+                    <span class="drop-title" id="reference-name">Choose a clear image</span>
+                    <span class="drop-meta">JPG, PNG or WebP · up to 10 MB</span>
+                  </label>
+                  <img id="reference-preview" class="reference-preview hidden" alt="Character reference preview" />
+                </div>
+              </div>
+
+              <label class="field-label prompt-label" for="prompt">Direction <span class="optional-label">OPTIONAL</span></label>
+              <textarea id="prompt" rows="4" maxlength="4000">Replace the main performer with the person in the character reference. Preserve the original performance, camera work, and location.</textarea>
+              <p class="field-hint">Motion and scene guidance are prepared inside the recast workflow.</p>
+
+              <div class="upload-actions">
+                <div class="upload-status" id="upload-status" aria-live="polite">Add both files and your API key to continue.</div>
+                <button class="button button-primary" id="upload-button" type="button" disabled>Upload media <span aria-hidden="true">→</span></button>
+              </div>
+              <button class="button button-primary full-width hidden" id="recast-button" type="button" disabled>Start recast <span aria-hidden="true">→</span></button>
+              <div class="cost-note" id="cost-note">Review the full source clip and character image before starting. One recast request is submitted; there is no separate draft or upscale step.</div>
+              <div class="alert hidden" id="error-box" role="alert"></div>
+            </section>
+
+            <aside class="panel process-panel" aria-labelledby="process-title">
+              <div class="panel-heading">
+                <div><div class="section-index">WORKFLOW</div><h2 id="process-title">A considered process</h2></div>
+                <span class="sparkle" aria-hidden="true">✳</span>
+              </div>
+              <div class="process-list">
+                <div class="process-item">
+                  <span class="process-icon">◉</span>
+                  <div><h3>Choose the performance</h3><p>Use a short clip with a clear view of the performer and enough room for their movement.</p></div>
+                </div>
+                <div class="process-item">
+                  <span class="process-icon">⌁</span>
+                  <div><h3>Add a character image</h3><p>The recast workflow prepares motion and scene references from your source clip.</p></div>
+                </div>
+                <div class="process-item">
+                  <span class="process-icon">↗</span>
+                  <div><h3>Review the result</h3><p>Check identity, movement, and the scene, then save the video locally.</p></div>
+                </div>
+              </div>
+              <div class="process-footnote"><span class="lock-icon">⌑</span><span>API key stays in memory. No account or key is stored by this app.</span></div>
+              <div class="requirements-card" id="requirements-card">
+                <span class="requirements-icon">◌</span>
+                <div><strong>Checking local tools…</strong><span>FFmpeg restores the original soundtrack when present.</span></div>
+              </div>
+            </aside>
+          </div>
+
+          <section class="panel progress-panel hidden" id="progress-panel" aria-live="polite">
+            <div class="progress-head"><div class="spinner"></div><div><div class="section-index" id="progress-eyebrow">SEEDANCE MOTION CONTROL</div><h2 id="progress-title">Recasting the performer…</h2><p id="progress-copy">This may take a few minutes. Keep this tab open while the request is running.</p></div></div>
+            <div class="progress-track"><span id="progress-bar"></span></div>
+            <div class="progress-meta"><span id="progress-label">SUBMITTING REQUEST</span><span id="progress-request"></span></div>
+          </section>
+
+          <section class="panel result-panel hidden" id="result-panel" aria-labelledby="result-title">
+            <div class="panel-heading">
+              <div><div class="section-index">03 / REVIEW</div><h2 id="result-title">Your recast is ready</h2></div>
+              <span class="status-pill complete"><span class="status-dot"></span> COMPLETE</span>
+            </div>
+            <div class="result-grid">
+              <div class="video-frame"><video id="result-video" controls playsinline></video></div>
+              <div class="review-copy final-copy">
+                <div class="review-kicker">REVIEW THE FULL CLIP</div>
+                <h3 id="export-headline">Original soundtrack restored.</h3>
+                <p id="export-copy">The source soundtrack has been muxed into the recast locally.</p>
+                <a class="text-link" id="result-open-link" href="#" target="_blank" rel="noreferrer">Open generated video ↗</a>
+                <a class="button button-primary full-width download-button" id="download-link" href="#" download>Download recast MP4 <span aria-hidden="true">↓</span></a>
+                <button class="button button-quiet full-width" id="new-recast-button" type="button">Start another recast</button>
+              </div>
+            </div>
+          </section>
+
+          <footer class="page-footer"><span>OPEN GENJUTSU</span><span>MADE FOR YOUR LOCAL WORKSPACE</span></footer>
+        </section>
+      </main>
+    </div>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
