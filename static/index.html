@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#10100f" />
-    <meta name="description" content="Recast a performer in a short video with a character image while preserving the source performance and scene." />
-    <title>Open Genjutsu</title>
+    <meta name="description" content="Recast a performance with Seedance 2.5 or Wan 3.0 using a staged video and character-reference workflow." />
+    <title>Genjutsu · Video Recast</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -14,9 +14,9 @@
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="/" aria-label="Open Genjutsu home">
+        <a class="brand" href="/" aria-label="Genjutsu home">
           <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
-          <span>open<span class="brand-light"> genjutsu</span></span>
+          <span>genjutsu<span class="brand-light" id="brand-mode"> lite</span></span>
         </a>
         <div class="topbar-right">
           <span class="local-pill"><span class="live-dot"></span> LOCAL SESSION</span>
@@ -28,7 +28,7 @@
         <section class="hero">
           <div class="eyebrow"><span class="eyebrow-line"></span> VIDEO RECAST · LOCAL-FIRST WORKFLOW</div>
           <h1>Same moment.<br /><span>A new lead.</span></h1>
-          <p class="hero-copy">Recast the main performer with a character reference while keeping the source performance and location. Review the inputs, render once, then download the result.</p>
+          <p class="hero-copy">Recast a performance with Seedance or Wan 3.0. Add a source clip and character references, then download the new take with the source soundtrack restored.</p>
         </section>
 
         <section class="workflow" aria-label="Video recast workflow">
@@ -44,7 +44,7 @@
             <section class="panel setup-panel" aria-labelledby="setup-title">
               <div class="panel-heading">
                 <div><div class="section-index">01 / INPUTS</div><h2 id="setup-title">Build your recast</h2></div>
-                <span class="step-badge">ONE RENDER</span>
+                <span class="step-badge">MODEL CHOICE</span>
               </div>
 
               <label class="field-label" for="api-key">Generation API key</label>
@@ -61,32 +61,64 @@
                     <input id="source-file" type="file" accept="video/mp4,video/quicktime,.mp4,.mov" />
                     <span class="upload-icon">↥</span>
                     <span class="drop-title" id="source-name">Choose your clip</span>
-                    <span class="drop-meta">MP4 or MOV · 4–30 sec · up to 50 MB</span>
+                    <span class="drop-meta">MP4 or MOV · 4–15 sec · up to 50 MB</span>
                   </label>
                   <video id="source-preview" class="source-preview hidden" controls playsinline></video>
                 </div>
                 <div class="upload-block">
-                  <label class="field-label" for="reference-file">02 — Character reference</label>
+                  <label class="field-label" for="reference-file">02 — Character references</label>
                   <label class="dropzone" for="reference-file" id="reference-drop">
-                    <input id="reference-file" type="file" accept="image/jpeg,image/png,image/webp" />
+                    <input id="reference-file" type="file" accept="image/jpeg,image/png,image/webp" multiple />
                     <span class="upload-icon">＋</span>
-                    <span class="drop-title" id="reference-name">Choose a clear image</span>
-                    <span class="drop-meta">JPG, PNG or WebP · up to 10 MB</span>
+                    <span class="drop-title" id="reference-name">Choose one or more clear images</span>
+                    <span class="drop-meta">JPG, PNG or WebP · up to 8 images · 10 MB each</span>
                   </label>
-                  <img id="reference-preview" class="reference-preview hidden" alt="Character reference preview" />
+                  <div id="reference-preview" class="reference-preview-grid hidden" aria-label="Character reference previews"></div>
                 </div>
               </div>
 
-              <label class="field-label prompt-label" for="prompt">Direction <span class="optional-label">OPTIONAL</span></label>
-              <textarea id="prompt" rows="4" maxlength="4000">Replace the main performer with the person in the character reference. Preserve the original performance, camera work, and location.</textarea>
-              <p class="field-hint">Motion and scene guidance are prepared inside the recast workflow.</p>
+              <div class="generation-options">
+                <div>
+                  <label class="field-label" for="model-select">Generation model</label>
+                  <select id="model-select" class="setting-control">
+                    <option value="wan">Genjutsu Lite · Wan 3.0</option>
+                    <option value="seedance">Genjutsu · Seedance Motion Control</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" for="mode-select">Recast mode</label>
+                  <select id="mode-select" class="setting-control">
+                    <option value="motion_transfer">Motion transfer</option>
+                    <option value="objects_swap">Objects / character swap</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" for="aspect-ratio">Output aspect ratio</label>
+                  <select id="aspect-ratio" class="setting-control">
+                    <option value="adaptive">Adaptive</option>
+                    <option value="16:9">16:9</option>
+                    <option value="9:16">9:16</option>
+                    <option value="1:1">1:1</option>
+                    <option value="4:3">4:3</option>
+                    <option value="3:4">3:4</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" for="duration-input">Output duration (seconds)</label>
+                  <input id="duration-input" class="setting-control" type="number" min="2" max="26" value="5" />
+                </div>
+              </div>
+
+              <label class="field-label prompt-label" for="prompt">Creative direction <span class="optional-label">OPTIONAL</span></label>
+              <textarea id="prompt" rows="4" maxlength="4000" placeholder="Add wardrobe, scene, or creative direction. The flow will analyze the video and references to write the final prompt."></textarea>
+              <p class="field-hint" id="model-hint">Wan 3.0 generates a new take from the prepared references; it may not reproduce motion frame for frame.</p>
 
               <div class="upload-actions">
                 <div class="upload-status" id="upload-status" aria-live="polite">Add both files and your API key to continue.</div>
                 <button class="button button-primary" id="upload-button" type="button" disabled>Upload media <span aria-hidden="true">→</span></button>
               </div>
-              <button class="button button-primary full-width hidden" id="recast-button" type="button" disabled>Start recast <span aria-hidden="true">→</span></button>
-              <div class="cost-note" id="cost-note">Review the full source clip and character image before starting. One recast request is submitted; there is no separate draft or upscale step.</div>
+              <button class="button button-primary full-width hidden" id="recast-button" type="button" disabled>Start Genjutsu Lite flow <span aria-hidden="true">→</span></button>
+              <div class="cost-note" id="cost-note">This flow submits several image, video-analysis, and video-generation requests through Muapi. Each stage may use account credits.</div>
               <div class="alert hidden" id="error-box" role="alert"></div>
             </section>
 
@@ -98,15 +130,15 @@
               <div class="process-list">
                 <div class="process-item">
                   <span class="process-icon">◉</span>
-                  <div><h3>Choose the performance</h3><p>Use a short clip with a clear view of the performer and enough room for their movement.</p></div>
+                  <div><h3>Choose the performance</h3><p>Use a 4–15 second clip with a clear view of the performer and their movement.</p></div>
                 </div>
                 <div class="process-item">
                   <span class="process-icon">⌁</span>
-                  <div><h3>Add a character image</h3><p>The recast workflow prepares motion and scene references from your source clip.</p></div>
+                  <div><h3>Prepare the references</h3><p>Muapi builds a depth video, clean environment plates, character sheets, and a scene-aware prompt.</p></div>
                 </div>
                 <div class="process-item">
                   <span class="process-icon">↗</span>
-                  <div><h3>Review the result</h3><p>Check identity, movement, and the scene, then save the video locally.</p></div>
+                  <div><h3>Generate and review</h3><p>Seedance 2.5 or Wan 3.0 creates a new take. The local export restores the source soundtrack.</p></div>
                 </div>
               </div>
               <div class="process-footnote"><span class="lock-icon">⌑</span><span>API key stays in memory. No account or key is stored by this app.</span></div>
@@ -118,7 +150,7 @@
           </div>
 
           <section class="panel progress-panel hidden" id="progress-panel" aria-live="polite">
-            <div class="progress-head"><div class="spinner"></div><div><div class="section-index" id="progress-eyebrow">SEEDANCE MOTION CONTROL</div><h2 id="progress-title">Recasting the performer…</h2><p id="progress-copy">This may take a few minutes. Keep this tab open while the request is running.</p></div></div>
+            <div class="progress-head"><div class="spinner"></div><div><div class="section-index" id="progress-eyebrow">GENJUTSU · MULTI-STAGE RECAST</div><h2 id="progress-title">Recasting the performer…</h2><p id="progress-copy">The selected model will generate a new take from your source clip and prepared references. Keep this tab open while the flow runs.</p></div></div>
             <div class="progress-track"><span id="progress-bar"></span></div>
             <div class="progress-meta"><span id="progress-label">SUBMITTING REQUEST</span><span id="progress-request"></span></div>
           </section>
@@ -135,13 +167,13 @@
                 <h3 id="export-headline">Original soundtrack restored.</h3>
                 <p id="export-copy">The source soundtrack has been muxed into the recast locally.</p>
                 <a class="text-link" id="result-open-link" href="#" target="_blank" rel="noreferrer">Open generated video ↗</a>
-                <a class="button button-primary full-width download-button" id="download-link" href="#" download>Download recast MP4 <span aria-hidden="true">↓</span></a>
+                <a class="button button-primary full-width download-button" id="download-link" href="#" download>Download Genjutsu Lite MP4 <span aria-hidden="true">↓</span></a>
                 <button class="button button-quiet full-width" id="new-recast-button" type="button">Start another recast</button>
               </div>
             </div>
           </section>
 
-          <footer class="page-footer"><span>OPEN GENJUTSU</span><span>MADE FOR YOUR LOCAL WORKSPACE</span></footer>
+          <footer class="page-footer"><span>GENJUTSU · MULTI-MODEL STUDIO</span><span>MADE FOR YOUR LOCAL WORKSPACE</span></footer>
         </section>
       </main>
     </div>

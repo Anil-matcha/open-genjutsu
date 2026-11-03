@@ -1,11 +1,13 @@
 const state = {
   apiKey: "",
   sourceFile: null,
-  referenceFile: null,
+  referenceFiles: [],
   sourceObjectUrl: null,
-  referenceObjectUrl: null,
+  referenceObjectUrls: [],
   sourceAssetId: null,
-  referenceAssetId: null,
+  referenceAssetIds: [],
+  activeModel: "wan",
+  sourceDuration: null,
   uploaded: false,
   requestId: null,
   resumeOnly: false,
@@ -24,6 +26,10 @@ const elements = {
   referenceName: $("#reference-name"),
   sourcePreview: $("#source-preview"),
   referencePreview: $("#reference-preview"),
+  model: $("#model-select"),
+  mode: $("#mode-select"),
+  aspectRatio: $("#aspect-ratio"),
+  duration: $("#duration-input"),
   uploadButton: $("#upload-button"),
   recastButton: $("#recast-button"),
   uploadStatus: $("#upload-status"),
@@ -52,6 +58,31 @@ function clearError() {
   elements.error.classList.add("hidden");
 }
 
+function flowName(model = elements.model.value) {
+  return model === "seedance" ? "Genjutsu" : "Genjutsu Lite";
+}
+
+function engineName(model = elements.model.value) {
+  return model === "seedance" ? "Seedance 2.5 Motion Control" : "Wan 3.0";
+}
+
+function updateModelPresentation() {
+  const model = elements.model.value;
+  const flow = flowName(model);
+  $("#brand-mode").textContent = model === "seedance" ? "" : " lite";
+  $("#model-hint").textContent = model === "seedance"
+    ? "Seedance Motion Control uses the prepared depth video, character sheets, and clean environment plates to guide the recast."
+    : "Wan 3.0 generates a new take from the prepared references; it may not reproduce motion frame for frame. Source and output together must fit 30 seconds.";
+  if (!state.busy) {
+    elements.recastButton.textContent = state.resumeOnly
+      ? "Resume flow checks →"
+      : state.submissionUnknown
+        ? "Check generation history"
+        : "Start " + flow + " flow →";
+  }
+  elements.downloadLink.textContent = "Download " + flow + " MP4 ↓";
+}
+
 async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
   let body = options.body;
@@ -73,13 +104,18 @@ async function api(path, options = {}) {
 }
 
 function updateControls() {
-  const hasInputs = Boolean(state.apiKey.value.trim() && state.sourceFile && state.referenceFile);
+  const hasInputs = Boolean(elements.apiKey.value.trim() && state.sourceFile && state.referenceFiles.length);
   elements.uploadButton.disabled = !hasInputs || state.busy || state.uploaded;
   elements.apiKey.disabled = state.busy || state.uploaded;
   elements.sourceFile.disabled = state.busy || state.uploaded;
   elements.referenceFile.disabled = state.busy || state.uploaded;
+  elements.model.disabled = state.busy || state.resumeOnly || state.submissionUnknown || state.finished;
   elements.prompt.disabled = state.busy || !state.uploaded;
+  elements.mode.disabled = state.busy;
+  elements.aspectRatio.disabled = state.busy;
+  elements.duration.disabled = state.busy || !state.uploaded;
   elements.recastButton.disabled = state.busy || !state.uploaded || state.submissionUnknown || state.finished;
+  updateModelPresentation();
 }
 
 function setStep(activeStep) {
@@ -90,40 +126,44 @@ function setStep(activeStep) {
   });
 }
 
-function showProgress(requestId, status = "processing") {
+function showProgress(requestId, status = "processing", payload = {}) {
   elements.progress.classList.remove("hidden");
   elements.resultPanel.classList.add("hidden");
-  elements.progressTitle.textContent = "Recasting the performer…";
-  elements.progressCopy.textContent = "Motion guidance and scene preparation run inside the workflow. This may take a few minutes; keep this tab open.";
+  elements.progressTitle.textContent = String(payload.progress_label || "").startsWith("RENDERING WITH ")
+    ? "Rendering with " + engineName(state.activeModel) + "…"
+    : "Preparing the recast flow…";
+  elements.progressCopy.textContent = payload.progress_message || "Submitting the first Muapi stage. Keep this tab open while the flow runs.";
   elements.progressRequest.textContent = requestId ? "REQUEST " + requestId.slice(0, 12).toUpperCase() : "";
-  const labels = { submitting: "SUBMITTING REQUEST", processing: "WAITING FOR SERVICE", completed: "COMPLETE" };
-  elements.progressLabel.textContent = labels[status] || "WAITING FOR SERVICE";
+  const labels = { submitting: "SUBMITTING FLOW", processing: payload.progress_label || "PROCESSING STAGES", completed: "COMPLETE" };
+  elements.progressLabel.textContent = labels[status] || payload.progress_label || "PROCESSING STAGES";
   elements.progressBar.classList.toggle("indeterminate", status !== "completed");
   elements.progressBar.classList.toggle("finished", status === "completed");
-  $("#progress-eyebrow").textContent = "SEEDANCE MOTION CONTROL";
+  $("#progress-eyebrow").textContent = payload.progress_label || "MUAPI MULTI-STAGE RECAST";
 }
 
 function findVideoUrl(payload) {
   const seen = new Set();
-  const visit = (value) => {
+  const visit = (value, keyHint = "") => {
     if (typeof value === "string") {
-      return /^https:\/\//i.test(value) && /\.(mp4|webm|mov|mkv|gif)(\?|$)/i.test(value) ? value : null;
+      const mediaUrl = /\.(mp4|webm|mov|mkv|gif)(\?|$)/i.test(value);
+      const videoField = ["video_url", "video", "output_url"].includes(keyHint);
+      return /^https:\/\//i.test(value) && (mediaUrl || videoField) ? value : null;
     }
     if (!value || typeof value !== "object" || seen.has(value)) return null;
     seen.add(value);
     if (Array.isArray(value)) {
       for (const item of value) {
-        const found = visit(item);
+        const found = visit(item, keyHint);
         if (found) return found;
       }
       return null;
     }
     for (const key of ["video_url", "video", "output_url", "url", "outputs"]) {
-      const found = visit(value[key]);
+      const found = visit(value[key], key);
       if (found) return found;
     }
     for (const child of Object.values(value)) {
-      const found = visit(child);
+      const found = visit(child, keyHint);
       if (found) return found;
     }
     return null;
@@ -148,7 +188,7 @@ async function waitForTask(requestId) {
       headers: { "x-api-key": state.apiKey },
     });
     const status = taskStatus(result);
-    showProgress(requestId, status);
+    showProgress(requestId, status, result);
     if (terminalSuccess.has(status)) {
       const videoUrl = findVideoUrl(result);
       if (!videoUrl) throw new Error("The request completed, but no video URL was returned.");
@@ -185,6 +225,36 @@ function setObjectUrl(videoOrImage, field, file) {
   }
 }
 
+function renderReferencePreviews(files) {
+  state.referenceObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  state.referenceObjectUrls = files.map((file) => URL.createObjectURL(file));
+  elements.referencePreview.replaceChildren();
+  state.referenceObjectUrls.forEach((url, index) => {
+    const image = document.createElement("img");
+    image.src = url;
+    image.alt = "Character reference " + (index + 1);
+    image.className = "reference-preview-thumb";
+    elements.referencePreview.append(image);
+  });
+  elements.referencePreview.classList.toggle("hidden", files.length === 0);
+}
+
+function updateOutputDurationLimit(sourceDuration) {
+  const seedance = elements.model.value === "seedance";
+  const minDuration = seedance ? 4 : 2;
+  const maxDuration = seedance ? 30 : Math.max(minDuration, Math.floor(30 - Number(sourceDuration || 0)));
+  elements.duration.min = String(minDuration);
+  elements.duration.max = String(maxDuration);
+  const current = Number(elements.duration.value || 5);
+  const suggested = Math.max(minDuration, Math.min(maxDuration, Number.isFinite(current) ? current : 5));
+  elements.duration.value = String(Math.round(suggested));
+}
+
+elements.model.addEventListener("change", () => {
+  updateOutputDurationLimit(state.sourceDuration);
+  updateModelPresentation();
+});
+
 elements.apiKey.addEventListener("input", updateControls);
 elements.sourceFile.addEventListener("change", () => {
   state.sourceFile = elements.sourceFile.files?.[0] || null;
@@ -193,9 +263,17 @@ elements.sourceFile.addEventListener("change", () => {
   updateControls();
 });
 elements.referenceFile.addEventListener("change", () => {
-  state.referenceFile = elements.referenceFile.files?.[0] || null;
-  elements.referenceName.textContent = state.referenceFile?.name || "Choose a clear image";
-  setObjectUrl(elements.referencePreview, "referenceObjectUrl", state.referenceFile);
+  const selected = Array.from(elements.referenceFile.files || []);
+  if (selected.length > 8) {
+    setError("Choose up to 8 character images. Genjutsu Lite reserves room for environment plates within Wan 3.0's 10-image limit.");
+  } else {
+    clearError();
+  }
+  state.referenceFiles = selected.slice(0, 8);
+  elements.referenceName.textContent = state.referenceFiles.length
+    ? state.referenceFiles.length + " character reference" + (state.referenceFiles.length === 1 ? "" : "s")
+    : "Choose one or more clear images";
+  renderReferencePreviews(state.referenceFiles);
   updateControls();
 });
 
@@ -208,20 +286,22 @@ $("#toggle-key").addEventListener("click", () => {
 elements.uploadButton.addEventListener("click", async () => {
   clearError();
   state.apiKey = elements.apiKey.value.trim();
-  if (!state.apiKey || !state.sourceFile || !state.referenceFile) return;
+  if (!state.apiKey || !state.sourceFile || !state.referenceFiles.length) return;
   state.busy = true;
   updateControls();
   elements.uploadButton.textContent = "Uploading…";
-  elements.uploadStatus.textContent = "Uploading source video and character image…";
+  elements.uploadStatus.textContent = "Uploading source video and " + state.referenceFiles.length + " character reference" + (state.referenceFiles.length === 1 ? "…" : "s…");
   try {
-    const [source, reference] = await Promise.all([
+    const [source, ...references] = await Promise.all([
       uploadOne(state.sourceFile, "source"),
-      uploadOne(state.referenceFile, "reference"),
+      ...state.referenceFiles.map((file) => uploadOne(file, "reference")),
     ]);
     state.sourceAssetId = source.asset_id;
-    state.referenceAssetId = reference.asset_id;
+    state.referenceAssetIds = references.map((reference) => reference.asset_id);
+    state.sourceDuration = Number(source.duration);
+    updateOutputDurationLimit(state.sourceDuration);
     state.uploaded = true;
-    elements.uploadStatus.innerHTML = '<span class="uploaded-check">✓</span> Ready. Review both inputs, then submit one recast request.';
+    elements.uploadStatus.innerHTML = '<span class="uploaded-check">✓</span> Ready. Review the source, character references, mode, and output settings.';
     elements.uploadButton.classList.add("hidden");
     elements.recastButton.classList.remove("hidden");
     elements.recastButton.disabled = false;
@@ -241,11 +321,19 @@ elements.recastButton.addEventListener("click", async () => {
   state.apiKey = elements.apiKey.value.trim() || state.apiKey;
   if (!state.uploaded || !state.apiKey || state.submissionUnknown || state.finished) return;
   if (!state.ffmpeg) return setError("Install FFmpeg and ffprobe before generating. They check the source clip and restore its soundtrack locally.");
+  const requestedModel = state.resumeOnly ? state.activeModel : elements.model.value;
+  const requestedDuration = Number(elements.duration.value);
+  const minimumDuration = requestedModel === "seedance" ? 4 : 2;
+  const maximumDuration = Number(elements.duration.max);
+  if (!Number.isInteger(requestedDuration) || requestedDuration < minimumDuration || requestedDuration > maximumDuration) {
+    return setError("Choose an output duration between " + minimumDuration + " and " + maximumDuration + " seconds for " + flowName(requestedModel) + ".");
+  }
+  state.activeModel = requestedModel;
   state.busy = true;
   updateControls();
   setStep(2);
   showProgress(state.requestId, state.resumeOnly ? "processing" : "submitting");
-  elements.recastButton.textContent = state.resumeOnly ? "Checking status…" : "Submitting recast…";
+  elements.recastButton.textContent = state.resumeOnly ? "Checking flow status…" : "Starting flow…";
   try {
     if (!state.resumeOnly) {
       const submitted = await api("/api/recast", {
@@ -253,8 +341,12 @@ elements.recastButton.addEventListener("click", async () => {
         json: {
           api_key: state.apiKey,
           source_asset_id: state.sourceAssetId,
-          reference_asset_id: state.referenceAssetId,
+          reference_asset_ids: state.referenceAssetIds,
+          model: state.activeModel,
           prompt: elements.prompt.value.trim(),
+          mode: elements.mode.value,
+          aspect_ratio: elements.aspectRatio.value,
+          duration: Number(elements.duration.value),
         },
       });
       state.requestId = submitted.request_id;
@@ -266,7 +358,7 @@ elements.recastButton.addEventListener("click", async () => {
     const completed = await waitForTask(state.requestId);
     showProgress(state.requestId, "completed");
     elements.progressTitle.textContent = "Preparing your download…";
-    elements.progressCopy.textContent = "The generated video is being saved locally with the source soundtrack, if present.";
+    elements.progressCopy.textContent = "The " + engineName(state.activeModel) + " result is being saved locally with the source soundtrack, if present.";
     const exported = await api("/api/export", {
       method: "POST",
       json: { source_asset_id: state.sourceAssetId, video_url: completed.videoUrl },
@@ -276,7 +368,7 @@ elements.recastButton.addEventListener("click", async () => {
     elements.resultVideo.src = exported.download_url;
     elements.resultLink.href = completed.videoUrl;
     elements.downloadLink.href = exported.download_url;
-    elements.downloadLink.download = "open-genjutsu-recast.mp4";
+    elements.downloadLink.download = state.activeModel === "seedance" ? "genjutsu.mp4" : "genjutsu-lite.mp4";
     $("#export-headline").textContent = exported.source_audio_restored ? "Original soundtrack restored." : "Recast render ready.";
     $("#export-copy").textContent = exported.source_audio_restored
       ? "The complete source soundtrack has been muxed into the recast locally."
@@ -302,7 +394,7 @@ elements.recastButton.addEventListener("click", async () => {
     }
   } finally {
     state.busy = false;
-    elements.recastButton.textContent = state.resumeOnly ? "Resume status checks →" : state.submissionUnknown ? "Check generation history" : "Start recast →";
+    updateModelPresentation();
     updateControls();
   }
 });
@@ -314,8 +406,11 @@ $("#clear-button").addEventListener("click", async () => {
   }
   try { await api("/api/clear", { method: "POST", json: {} }); } catch { /* Clear browser state even if server cleanup is unavailable. */ }
   state.apiKey = "";
-  state.sourceFile = state.referenceFile = null;
-  state.sourceAssetId = state.referenceAssetId = null;
+  state.sourceFile = null;
+  state.referenceFiles = [];
+  state.sourceAssetId = null;
+  state.referenceAssetIds = [];
+  state.sourceDuration = null;
   state.uploaded = false;
   state.requestId = null;
   state.resumeOnly = false;
@@ -324,26 +419,32 @@ $("#clear-button").addEventListener("click", async () => {
   elements.apiKey.value = "";
   elements.sourceFile.value = "";
   elements.referenceFile.value = "";
+  elements.duration.value = "5";
+  elements.model.value = "wan";
+  state.activeModel = "wan";
+  updateOutputDurationLimit(null);
   [elements.sourcePreview, elements.resultVideo].forEach((video) => {
     video.pause();
     video.removeAttribute("src");
     video.load();
   });
-  elements.referencePreview.removeAttribute("src");
   if (state.sourceObjectUrl) URL.revokeObjectURL(state.sourceObjectUrl);
-  if (state.referenceObjectUrl) URL.revokeObjectURL(state.referenceObjectUrl);
-  state.sourceObjectUrl = state.referenceObjectUrl = null;
+  state.referenceObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  state.sourceObjectUrl = null;
+  state.referenceObjectUrls = [];
+  elements.referencePreview.replaceChildren();
+  elements.referencePreview.classList.add("hidden");
   elements.resultLink.href = "#";
   elements.downloadLink.href = "#";
   elements.resultPanel.classList.add("hidden");
   elements.progress.classList.add("hidden");
   elements.recastButton.classList.add("hidden");
-  elements.recastButton.textContent = "Start recast →";
+  elements.recastButton.textContent = "Start Genjutsu Lite flow →";
   elements.uploadButton.classList.remove("hidden");
   elements.uploadButton.textContent = "Upload media →";
-  elements.uploadStatus.textContent = "Add both files and your API key to continue.";
+  elements.uploadStatus.textContent = "Add a source clip, character reference images, and your API key to continue.";
   elements.sourceName.textContent = "Choose your clip";
-  elements.referenceName.textContent = "Choose a clear image";
+  elements.referenceName.textContent = "Choose one or more clear images";
   $("#toggle-key").textContent = "Show";
   elements.apiKey.type = "password";
   setStep(1);

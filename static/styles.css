@@ -68,6 +68,10 @@ input::placeholder { color: #66645e; }
 .key-toggle { padding: 0 12px; border: 0; border-left: 1px solid var(--line-soft); background: transparent; color: #99958c; cursor: pointer; font-size: 10px; }
 .key-toggle:hover { color: var(--accent); }
 .field-hint { margin: 7px 0 0; color: #7f7c73; font-size: 10px; line-height: 1.5; }
+.generation-options { display: grid; grid-template-columns: 1.35fr 1.25fr 1fr .8fr; gap: 10px; margin: 20px 0 18px; }
+.setting-control { width: 100%; min-height: 38px; padding: 9px 10px; border: 1px solid #393933; border-radius: 4px; outline: none; background: #111110; color: var(--ink); font-size: 10px; }
+.setting-control:focus { border-color: #887443; box-shadow: 0 0 0 2px #d2b16b14; }
+.setting-control:disabled { opacity: .55; }
 .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 23px 0 19px; }
 .dropzone { min-height: 130px; padding: 17px 11px; border: 1px dashed #41413a; border-radius: 5px; background: #141412; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; text-align: center; transition: border-color .18s ease, background .18s ease; }
 .dropzone:hover { border-color: #95804e; background: #1c1b17; }
@@ -76,8 +80,9 @@ input::placeholder { color: #66645e; }
 .upload-icon { width: 28px; height: 28px; margin-bottom: 8px; display: grid; place-items: center; border: 1px solid #4a4639; border-radius: 50%; color: var(--accent); font-size: 15px; }
 .drop-title { max-width: 100%; color: #dedad2; font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drop-meta { margin-top: 5px; color: #77746d; font-size: 9px; }
-.source-preview, .reference-preview { width: 100%; height: 110px; margin-top: 8px; border-radius: 4px; background: #0b0b0a; object-fit: contain; }
-.reference-preview { object-fit: cover; }
+.source-preview { width: 100%; height: 110px; margin-top: 8px; border-radius: 4px; background: #0b0b0a; object-fit: contain; }
+.reference-preview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-top: 8px; }
+.reference-preview-thumb { width: 100%; height: 58px; border-radius: 4px; background: #0b0b0a; object-fit: cover; }
 .prompt-label { margin-top: 1px; }
 textarea { width: 100%; min-height: 106px; resize: vertical; padding: 12px; border: 1px solid #393933; border-radius: 4px; outline: none; background: #111110; color: #d8d5ce; font-size: 11px; line-height: 1.6; }
 textarea:focus { border-color: #887443; box-shadow: 0 0 0 2px #d2b16b14; }
@@ -178,6 +183,9 @@ textarea:focus { border-color: #887443; box-shadow: 0 0 0 2px #d2b16b14; }
   .setup-panel, .process-panel, .progress-panel, .result-panel { padding: 19px 16px; }
   .panel-heading { margin-bottom: 20px; }
   .upload-grid { gap: 8px; }
+  .generation-options { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .generation-options > div:last-child { grid-column: auto; }
+  .reference-preview-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dropzone { min-height: 116px; padding: 12px 6px; }
   .drop-title { font-size: 10px; }
   .drop-meta { font-size: 8px; }

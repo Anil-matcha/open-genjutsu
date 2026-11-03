@@ -1,8 +1,8 @@
-# Open Genjutsu
+# Genjutsu
 
-**Recast the performer in a short video with a character reference.** Keep the original movement and location, review the result, and export a local MP4 with the source soundtrack restored.
+**Recast the performer in a short video with Seedance 2.5 or Wan 3.0.** Review the generated take, then export a local MP4 with the source soundtrack restored.
 
-Open Genjutsu is a local-first workspace: source media is previewed and retained on your device, while the generation request runs through a configured video API.
+Genjutsu is a local-first workspace: source media is previewed and retained on your device. Both model choices share the same Muapi preparation stages for depth, environment, character, and prompt references. Choose **Genjutsu** for Seedance Motion Control or **Genjutsu Lite** for Wan 3.0.
 
 ![MIT License](https://img.shields.io/github/license/Anil-matcha/open-genjutsu) ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB) ![Local-first](https://img.shields.io/badge/runtime-local--first-5865F2)
 
@@ -14,7 +14,7 @@ Open Genjutsu is a local-first workspace: source media is previewed and retained
   <sub>Fictional character animation · 5 sec · 720p · Start frame: <a href="docs/media/avatar-sample.png">PNG</a> · Full clip: <a href="docs/media/avatar-sample.mp4">MP4</a></sub>
 </p>
 
-This is an example character clip. The app's recast flow takes a source performance video and a character image as its two inputs.
+This is an example character clip. Genjutsu takes a source video and one or more character images as its inputs.
 
 ## Subject replacement sample
 
@@ -24,17 +24,17 @@ This is an example character clip. The app's recast flow takes a source performa
   <sub>Source clip: <a href="docs/media/source-performer.mp4">MP4</a> · Source start frame: <a href="docs/media/source-performer.png">PNG</a> · Character reference: <a href="docs/media/avatar-sample.png">PNG</a> · Recast result: <a href="docs/media/recast-sample.mp4">MP4</a></sub>
 </p>
 
-The source performer and character are fictional generated examples. The result keeps the studio setting and the source clip's simple hand gesture while replacing the performer.
+The source performer and character are fictional generated examples. These sample assets demonstrate the workflow and are not renders from either model option.
 
 ## How it works
 
-1. **Choose the inputs.** Add a 4–30 second source clip and a character reference image.
-2. **Review before submitting.** Preview the full source clip and character image. Add an optional short direction.
-3. **Submit one recast request.** The motion-control workflow derives motion and scene guidance from the source clip internally; the app does not submit separate depth-map or background-removal jobs.
-4. **Check the result.** The app polls the request, downloads the generated video, and muxes the source soundtrack locally when one is present.
-5. **Save the MP4.** Review the full result and download it from the local app.
+1. **Choose the inputs.** Add a 4–15 second source clip and up to eight character images.
+2. **Review the direction.** Choose motion transfer or object swap, set the output ratio and duration, and add an optional creative brief.
+3. **Prepare references.** Depth Anything extracts a depth video. Gemini Video Vision analyzes motion and selects environment frames. Nano Banana 2 Edit cleans those frames, GPT Image 2 builds character sheets, and Gemini 2.5 Flash writes a model-specific prompt.
+4. **Choose the render model.** Genjutsu sends the prepared references to Seedance 2.5 Omni Reference, the final render model used by Muapi's Seedance Motion Control flow. Genjutsu Lite sends the same prepared references to Wan 3.0 Reference to Video. Both choices use the same API key and Muapi submit-and-poll flow.
+5. **Save the MP4.** The app downloads the result and restores the source soundtrack locally when one is present.
 
-The motion-control endpoint is a single generation request. It does not use the separate draft/finalize calls available on some other video endpoints.
+Seedance 2.5 accepts 4–30 second output durations and up to 30 final image references; Genjutsu limits character uploads to eight and adds environment plates from the source. Genjutsu Lite requires the source depth video and output duration to fit within Wan 3.0's 30-second combined limit and supports at most 10 final image references. Wan 3.0 may not reproduce the source performance frame for frame.
 
 ## Requirements
 
@@ -75,16 +75,16 @@ Open <http://127.0.0.1:8770>, enter your API key, choose the source clip and cha
 
 | Input | Supported formats | Limit |
 | --- | --- | --- |
-| Source video | MP4, MOV | 4–30 seconds; 50 MB |
-| Character reference | JPEG, PNG, WebP | 10 MB |
+| Source video | MP4, MOV | 4–15 seconds; 50 MB |
+| Character references | JPEG, PNG, WebP | Up to 8 images; 10 MB each |
 
-The source must be readable by FFmpeg. Use one character image per recast. The app checks the source duration before upload.
+The source must be readable by FFmpeg. Genjutsu Lite's output duration is capped so the source depth video and generated video together stay within 30 seconds. Genjutsu allows 4–30 second output. The app checks the source duration before upload.
 
 ## Privacy and local files
 
 - The API key is held in page memory and is not written to disk or application logs.
 - The source video is uploaded for recasting and kept locally under `runtime/assets/` for previews and soundtrack restoration.
-- The character image is uploaded for the recast request and previewed in the browser.
+- Character images are uploaded for the recast request and previewed in the browser.
 - Generated exports are written under `runtime/exports/`.
 - Use **Clear local files** when finished, or remove `runtime/` after stopping the server.
 - The server binds to `127.0.0.1`. Keep it there; this app has no authentication for public hosting.
@@ -100,11 +100,15 @@ The local FastAPI adapter uses these requests:
 
 | Purpose | Request |
 | --- | --- |
-| Upload source and reference | `POST /api/v1/upload_file` |
-| Submit the recast | `POST /api/v1/seedance-2.5-motion-control` with `video_url`, `images_list`, optional `prompt`, `aspect_ratio`, `duration`, and `generate_audio: false` |
-| Check generation status | `GET /api/v1/predictions/{request_id}/result` |
+| Upload source, character images, and generated contact sheets/frames | `POST /api/v1/upload_file` |
+| Generate depth video | `POST /api/v1/depth-anything` with `video_url` |
+| Analyze video and write prompt | `POST /api/v1/gemini-video-vision`, then `POST /api/v1/gemini-2-5-flash` with the prompt contact sheet |
+| Prepare image references | `POST /api/v1/nano-banana-2-edit` for environment plates and `POST /api/v1/gpt-image-2-image-to-image` for character sheets |
+| Generate with Genjutsu | `POST /api/v1/seedance-2.5-omni-reference` with character/environment `images_list`, depth video in `videos_list`, prompt, resolution, aspect ratio, and duration |
+| Generate with Genjutsu Lite | `POST /api/v1/wan3.0-reference-to-video` with character/environment `images_list`, depth video in `videos_list`, prompt, resolution, aspect ratio, duration, and `enable_audio: false` |
+| Check each model stage | `GET /api/v1/predictions/{request_id}/result` |
 
-The model request uses the original source video and character image directly. Its motion-control pipeline prepares depth and scene references internally.
+All Muapi calls use the same API key entered in the app. Generated audio is disabled for Wan; the local exporter restores the source soundtrack after either render. Each image, video-analysis, and video-generation stage may use account credits.
 
 The local app restores source audio after generation with FFmpeg. Replace the adapter calls in `app.py` to connect a different service with the same submit-and-poll pattern.
 
@@ -131,4 +135,4 @@ runtime/exports/    Local exports (ignored by Git)
 
 ## License
 
-Open Genjutsu is licensed under the MIT License. See [LICENSE](LICENSE).
+Genjutsu is licensed under the MIT License. See [LICENSE](LICENSE).
